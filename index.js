@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -88,10 +88,25 @@ async function run() {
       res.send(result);
     });
 
+    //Add Asset Request
     app.post("/add-asset", async (req, res) => {
       const data = req.body;
       const result = await assetCollection.insertOne(data);
-      res.send(data);
+      res.send(result);
+    });
+
+    //Get All Assets Api
+    app.get("/all-asset", async (req, res) => {
+      const result = await assetCollection.find().toArray();
+      res.send(result);
+    });
+
+    //Delete Asset Api
+    app.delete(`/delete-asset/:id`, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await assetCollection.deleteOne(query);
+      res.send(result);
     });
 
     //!payment Intent
