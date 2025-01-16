@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const app = express();
 require("dotenv").config();
 const port = process.env.PORT || 5000;
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 //middleware
 app.use(express.json());
@@ -26,8 +27,9 @@ async function run() {
     const database = client.db("ProTracker");
     const employeeCollection = database.collection("employeeCollection");
     const hrCollection = database.collection("hrCollection");
+    const assetCollection = database.collection("assetCollection");
 
-    //jwt related
+    //! jwt related
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
@@ -36,7 +38,7 @@ async function run() {
       res.send({ token });
     });
 
-    //employee related api
+    //! Employee related api
     app.post("/add-employee", async (req, res) => {
       const employeeInfo = req.body;
       const email = employeeInfo.email;
@@ -52,8 +54,7 @@ async function run() {
       res.send(result);
     });
 
-    //hr related api
-    // HR-related API
+    //! HR-related API
     app.get("/users/hr/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -85,6 +86,32 @@ async function run() {
       }
       const result = await hrCollection.insertOne(employeeInfo);
       res.send(result);
+    });
+
+    app.post("/add-asset", async (req, res) => {
+      const data = req.body;
+      const result = await assetCollection.insertOne(data);
+      res.send(data);
+    });
+
+    //!payment Intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const { amount } = req.body;
+      const paymentAmount = parseInt(amount * 100); // Stripe
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: paymentAmount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error("Error creating payment intent:", error);
+        res.status(500).send({ error: "Failed to create payment intent" });
+      }
     });
   } finally {
     // Ensures that the client will close when you finish/error
