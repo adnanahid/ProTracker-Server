@@ -40,6 +40,9 @@ async function run() {
   try {
     const database = client.db("ProTracker");
     const employeeCollection = database.collection("employeeCollection");
+    const selectedEmployeeCollection = database.collection(
+      "selectedEmployeeCollection"
+    );
     const hrCollection = database.collection("hrCollection");
     const assetCollection = database.collection("assetCollection");
 
@@ -68,22 +71,34 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/all-employees", async (req, res) => {
+      const result = await employeeCollection.find().toArray();
+      res.send(result);
+    });
+
     //! HR-related API
-    app.get("/users/hr/:email", async (req, res) => {
+    app.get("/detailsOf/:email", async (req, res) => {
       try {
         const email = req.params.email;
-        const query = { email: email };
+        const query = { email };
 
-        const result = await hrCollection.findOne(query);
-
-        if (result) {
-          return res.json({ hr: true, message: "User is an HR" });
-        } else {
-          return res.json({ hr: false, message: "User is not an HR" });
+        // Check if the user is in the HR collection
+        const hrDetails = await hrCollection.findOne(query);
+        if (hrDetails) {
+          return res.status(200).send(hrDetails);
         }
+
+        // Check if the user is in the Employee collection
+        const employeeDetails = await employeeCollection.findOne(query);
+        if (employeeDetails) {
+          return res.status(200).send(employeeDetails);
+        }
+
+        // If no match is found
+        return res.status(404).send({ message: "User not found" });
       } catch (error) {
-        console.error("Error checking HR status:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error fetching role:", error);
+        res.status(500).send({ message: "Internal server error" });
       }
     });
 
@@ -116,7 +131,7 @@ async function run() {
     });
 
     //Delete Asset Api
-    app.delete(`/delete-asset/:id`, async (req, res) => {
+    app.delete(`/delete-asset/:id`, verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await assetCollection.deleteOne(query);
@@ -124,7 +139,7 @@ async function run() {
     });
 
     //!payment Intent
-    app.post("/create-payment-intent",verifyToken, async (req, res) => {
+    app.post("/create-payment-intent", async (req, res) => {
       const { amount } = req.body;
       const paymentAmount = parseInt(amount * 100); // Stripe
       try {
