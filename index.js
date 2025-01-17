@@ -9,7 +9,11 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 //middleware
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+  })
+);
 
 const verifyToken = (req, res, next) => {
   if (!req.headers.authorization) {
@@ -39,7 +43,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const database = client.db("ProTracker");
-    const employeeCollection = database.collection("employeeCollection");
+    const newEmployeeCollection = database.collection("newEmployeeCollection");
     const selectedEmployeeCollection = database.collection(
       "selectedEmployeeCollection"
     );
@@ -56,23 +60,20 @@ async function run() {
     });
 
     //! Employee related api
-    app.post("/add-employee", async (req, res) => {
-      const employeeInfo = req.body;
-      const email = employeeInfo.email;
-      const existingEmployee = await employeeCollection.findOne({
-        email: email,
-      });
-      if (existingEmployee) {
-        return res.send({
-          message: "Employee with this email already exists.",
-        });
-      }
-      const result = await employeeCollection.insertOne(employeeInfo);
+    app.put("/add-new-employee", async (req, res) => {
+      const { email, ...rest } = req.body;
+
+      const result = await newEmployeeCollection.updateOne(
+        { email },
+        { $set: { email, ...rest } },
+        { upsert: true }
+      );
+
       res.send(result);
     });
 
     app.get("/all-employees", async (req, res) => {
-      const result = await employeeCollection.find().toArray();
+      const result = await newEmployeeCollection.find().toArray();
       res.send(result);
     });
 
@@ -89,7 +90,7 @@ async function run() {
         }
 
         // Check if the user is in the Employee collection
-        const employeeDetails = await employeeCollection.findOne(query);
+        const employeeDetails = await newEmployeeCollection.findOne(query);
         if (employeeDetails) {
           return res.status(200).send(employeeDetails);
         }
