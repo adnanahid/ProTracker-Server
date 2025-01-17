@@ -11,6 +11,20 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 app.use(express.json());
 app.use(cors());
 
+const verifyToken = (req, res, next) => {
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "forbidden access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kgmqz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -89,14 +103,14 @@ async function run() {
     });
 
     //Add Asset Request
-    app.post("/add-asset", async (req, res) => {
+    app.post("/add-asset", verifyToken, async (req, res) => {
       const data = req.body;
       const result = await assetCollection.insertOne(data);
       res.send(result);
     });
 
     //Get All Assets Api
-    app.get("/all-asset", async (req, res) => {
+    app.get("/all-asset", verifyToken, async (req, res) => {
       const result = await assetCollection.find().toArray();
       res.send(result);
     });
@@ -110,7 +124,7 @@ async function run() {
     });
 
     //!payment Intent
-    app.post("/create-payment-intent", async (req, res) => {
+    app.post("/create-payment-intent",verifyToken, async (req, res) => {
       const { amount } = req.body;
       const paymentAmount = parseInt(amount * 100); // Stripe
       try {
