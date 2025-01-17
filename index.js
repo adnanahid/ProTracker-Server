@@ -98,8 +98,16 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-employees", async (req, res) => {
+    app.get("/all-employees", verifyToken, async (req, res) => {
       const result = await newEmployeeCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/my-employees/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await selectedEmployeeCollection
+        .find({ hrEmail: email })
+        .toArray();
       res.send(result);
     });
 
@@ -142,7 +150,7 @@ async function run() {
     });
 
     //add employee to team
-    app.post(`/add-to-team/`, async (req, res) => {
+    app.post(`/add-to-team/`, verifyToken, async (req, res) => {
       const data = req.body;
       const result = await selectedEmployeeCollection.insertOne(data);
       if (result.acknowledged) {
