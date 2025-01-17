@@ -59,25 +59,7 @@ async function run() {
       res.send({ token });
     });
 
-    //! Employee related api
-    app.put("/add-new-employee", async (req, res) => {
-      const { email, ...rest } = req.body;
-
-      const result = await newEmployeeCollection.updateOne(
-        { email },
-        { $set: { email, ...rest } },
-        { upsert: true }
-      );
-
-      res.send(result);
-    });
-
-    app.get("/all-employees", async (req, res) => {
-      const result = await newEmployeeCollection.find().toArray();
-      res.send(result);
-    });
-
-    //! HR-related API
+    //!Checking users role
     app.get("/detailsOf/:email", async (req, res) => {
       try {
         const email = req.params.email;
@@ -103,6 +85,26 @@ async function run() {
       }
     });
 
+    //! Employee related api
+    app.put("/add-new-employee", async (req, res) => {
+      const { email, ...rest } = req.body;
+
+      const result = await newEmployeeCollection.updateOne(
+        { email },
+        { $set: { email, ...rest } },
+        { upsert: true }
+      );
+
+      res.send(result);
+    });
+
+    app.get("/all-employees", async (req, res) => {
+      const result = await newEmployeeCollection.find().toArray();
+      res.send(result);
+    });
+
+    //! HR-related API
+    //Register as a hr
     app.post("/add-hr", async (req, res) => {
       const employeeInfo = req.body;
       const email = employeeInfo.email;
@@ -136,6 +138,18 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await assetCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //add employee to team
+    app.post(`/add-to-team/`, async (req, res) => {
+      const data = req.body;
+      const result = await selectedEmployeeCollection.insertOne(data);
+      if (result.acknowledged) {
+        const deleteResult = await newEmployeeCollection.deleteOne({
+          email: data.email,
+        });
+      }
       res.send(result);
     });
 
