@@ -42,13 +42,18 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    //database
     const database = client.db("ProTracker");
-    const newEmployeeCollection = database.collection("newEmployeeCollection");
-    const selectedEmployeeCollection = database.collection(
-      "selectedEmployeeCollection"
-    );
+    //employeeCollection
+    const employeeCollection = database.collection("employeeCollection");
+    //hrCollection
     const hrCollection = database.collection("hrCollection");
+    //assetCollection
     const assetCollection = database.collection("assetCollection");
+    //requestedAssetByEmployeeCollection
+    const assetsRequestByEmployee = database.collection(
+      "assetsRequestByEmployee"
+    );
 
     //! jwt related
     app.post("/jwt", async (req, res) => {
@@ -72,7 +77,7 @@ async function run() {
         }
 
         // Check if the user is in the Employee collection
-        const employeeDetails = await newEmployeeCollection.findOne(query);
+        const employeeDetails = await employeeCollection.findOne(query);
         if (employeeDetails) {
           return res.status(200).send(employeeDetails);
         }
@@ -80,34 +85,50 @@ async function run() {
         // If no match is found
         return res.status(404).send({ message: "User not found" });
       } catch (error) {
-        console.error("Error fetching role:", error);
         res.status(500).send({ message: "Internal server error" });
       }
     });
 
     //! Employee related api
-    app.put("/add-new-employee", async (req, res) => {
-      const { email, ...rest } = req.body;
-
-      const result = await newEmployeeCollection.updateOne(
-        { email },
-        { $set: { email, ...rest } },
-        { upsert: true }
-      );
+    app.post("/add-new-employee", async (req, res) => {
+      const data = req.body;
+      const query = { email: data.email };
+      const find = await employeeCollection.findOne(query);
+      if (find) {
+        return res.send({ message: "user already exist" });
+      }
+      const result = await employeeCollection.insertOne(req.body);
 
       res.send(result);
     });
 
     app.get("/all-employees", verifyToken, async (req, res) => {
-      const result = await newEmployeeCollection.find().toArray();
+      const query = { role: "n/a" };
+      const result = await employeeCollection.find(query).toArray();
       res.send(result);
     });
 
     app.get("/my-employees/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const result = await selectedEmployeeCollection
+      const result = await employeeCollection
         .find({ hrEmail: email })
         .toArray();
+      res.send(result);
+    });
+
+    app.get("/assets-of-company/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await assetCollection
+        .find({
+          HREmail: email,
+        })
+        .toArray();
+      res.send(result);
+    });
+
+    app.post("/assets-request-by-employee", async (req, res) => {
+      const data = req.body;
+      const result = await assetsRequestByEmployee.insertOne(data);
       res.send(result);
     });
 
@@ -136,8 +157,11 @@ async function run() {
     });
 
     //Get All Assets Api
-    app.get("/all-asset", verifyToken, async (req, res) => {
-      const result = await assetCollection.find().toArray();
+    app.get("/all-asset/:email", verifyToken, async (req, res) => {
+      const filter = {
+        HREmail: req.params.email,
+      };
+      const result = await assetCollection.find(filter).toArray();
       res.send(result);
     });
 
@@ -150,14 +174,19 @@ async function run() {
     });
 
     //add employee to team
-    app.post(`/add-to-team/`, verifyToken, async (req, res) => {
-      const data = req.body;
-      const result = await selectedEmployeeCollection.insertOne(data);
-      if (result.acknowledged) {
-        const deleteResult = await newEmployeeCollection.deleteOne({
-          email: data.email,
-        });
-      }
+    app.patch(`/add-to-team`, verifyToken, async (req, res) => {
+      const email = req.body.email;
+      const filter = { email: email };
+      const updateData = req.body;
+      const updateDoc = {
+        $set: {
+          role: "employee",
+          hrEmail: updateData.hrEmail,
+          companyName: updateData.companyName,
+          companyLogo: updateData.companyLogo,
+        },
+      };
+      const result = await employeeCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
@@ -176,7 +205,6 @@ async function run() {
           clientSecret: paymentIntent.client_secret,
         });
       } catch (error) {
-        console.error("Error creating payment intent:", error);
         res.status(500).send({ error: "Failed to create payment intent" });
       }
     });
