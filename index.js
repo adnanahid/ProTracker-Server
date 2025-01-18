@@ -128,8 +128,44 @@ async function run() {
 
     app.post("/assets-request-by-employee", async (req, res) => {
       const data = req.body;
+      const { email, AssetName } = data;
+      const existingRequest = await assetsRequestByEmployee.findOne({
+        email: email,
+        AssetName: AssetName,
+      });
+
+      if (existingRequest) {
+        return res.status(409).send({
+          message: "You have already requested this asset.",
+        });
+      }
+
       const result = await assetsRequestByEmployee.insertOne(data);
       res.send(result);
+    });
+
+    app.get("/myRequestedAssetList/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await assetsRequestByEmployee
+        .find({
+          email: email,
+          RequestStatus: "Pending",
+        })
+        .toArray();
+      res.send(result);
+    });
+
+    app.get("/myTeamMembers/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await employeeCollection
+        .find({
+          hrEmail: email,
+        })
+        .toArray();
+      const hrInfo = await hrCollection.findOne({
+        email: email,
+      });
+      res.send({ result, hrInfo });
     });
 
     //! HR-related API
