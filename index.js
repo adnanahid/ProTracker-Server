@@ -149,7 +149,6 @@ async function run() {
       const result = await assetsRequestByEmployee
         .find({
           email: email,
-          RequestStatus: "Pending",
         })
         .toArray();
       res.send(result);
@@ -223,6 +222,25 @@ async function run() {
         },
       };
       const result = await employeeCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    //Get All requested Assets Api
+    app.get("/assetRequests/:email", verifyToken, async (req, res) => {
+      const filter = {
+        hrEmail: req.params.email,
+      };
+      const result = await assetsRequestByEmployee.find(filter).toArray();
+      res.send(result);
+    });
+
+    app.put(`/handleRequest/:id`, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: req.body,
+      };
+      const result = await assetsRequestByEmployee.updateOne(query, updatedDoc);
       res.send(result);
     });
 
