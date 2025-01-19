@@ -127,21 +127,52 @@ async function run() {
     });
 
     app.post("/assets-request-by-employee", async (req, res) => {
-      const data = req.body;
-      const { email, AssetName } = data;
-      const existingRequest = await assetsRequestByEmployee.findOne({
-        email: email,
-        AssetName: AssetName,
-      });
+      try {
+        const data = req.body;
+        const { email, AssetName, hrEmail } = data;
+        const existingRequest = await assetsRequestByEmployee.findOne({
+          email: email,
+          AssetName: AssetName,
+        });
 
-      if (existingRequest) {
-        return res.status(409).send({
-          message: "You have already requested this asset.",
+        if (existingRequest) {
+          return res.status(409).send({
+            message: "You have already requested this asset.",
+          });
+        }
+
+        const result = await assetsRequestByEmployee.insertOne(data);
+
+        if (result.insertedId) {
+          const updateResult = await assetCollection.updateOne(
+            {
+              HREmail: hrEmail,
+              productName: AssetName,
+            },
+            { $inc: { productQuantity: -1 } }
+          );
+
+          if (updateResult.modifiedCount > 0) {
+            return res.send({
+              message: "Asset requested successfully, and quantity updated.",
+              requestId: result.insertedId,
+            });
+          } else {
+            return res.status(500).send({
+              message: "Asset requested, but failed to update quantity.",
+            });
+          }
+        }
+
+        res.status(500).send({
+          message: "Failed to request asset.",
+        });
+      } catch (error) {
+        console.error("Error processing asset request:", error);
+        res.status(500).send({
+          message: "An error occurred while processing the request.",
         });
       }
-
-      const result = await assetsRequestByEmployee.insertOne(data);
-      res.send(result);
     });
 
     app.get("/myRequestedAssetList/:email", verifyToken, async (req, res) => {
