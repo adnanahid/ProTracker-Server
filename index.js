@@ -106,7 +106,6 @@ async function run() {
       const page = parseInt(req.query.page - 1);
       const limit = parseInt(req.query.limit);
       const query = { role: "n/a" };
-      console.log(page, limit);
       const result = await employeeCollection
         .find(query)
         .skip(page * limit)
@@ -115,7 +114,6 @@ async function run() {
       const totalCount = await employeeCollection.countDocuments({
         role: "n/a",
       });
-      console.log(totalCount);
       res.send({ allEmployees: result, totalCount });
     });
 
@@ -136,12 +134,35 @@ async function run() {
 
     app.get("/assets-of-company/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const result = await assetCollection
-        .find({
-          HREmail: email,
-        })
+      const filter = { HREmail: email };
+      const page = parseInt(req.query.page) - 1 || 0;
+      const limit = parseInt(req.query.limit) || 10;
+      const search = req.query.search;
+      const filterBy = req.query.filterBy;
+
+      if (search) {
+        filter.productName = { $regex: search, $options: "i" };
+      }
+
+      if (filterBy === "Available") {
+        filter.productQuantity = { $gt: 0 };
+      } else if (filterBy === "Out-of-stock") {
+        filter.productQuantity = { $eq: 0 };
+      } else if (filterBy === "Returnable") {
+        filter.productType = "Returnable";
+      } else if (filterBy === "Non-returnable") {
+        filter.productType = "Non-returnable";
+      }
+
+      const requestedAssets = await assetCollection
+        .find(filter)
+        .skip(page * limit)
+        .limit(limit)
         .toArray();
-      res.send(result);
+      const totalCount = await assetCollection.countDocuments({
+        HREmail: email,
+      });
+      res.send({ requestedAssets, totalCount });
     });
 
     app.post("/assets-request-by-employee/:id", async (req, res) => {
@@ -196,21 +217,41 @@ async function run() {
 
     app.get("/myRequestedAssetList/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const result = await assetsRequestByEmployee
-        .find({
-          email: email,
-        })
+      const filter = { email: email };
+      const page = parseInt(req.query.page - 1) || 0;
+      const limit = parseInt(req.query.limit) || 10;
+      const search = req.query.search;
+      const filterBy = req.query.filter;
+
+      if (search) {
+        filter.AssetName = { $regex: search, $options: "i" };
+      }
+
+      if (filterBy === "Pending") {
+        filter.RequestStatus = "Pending";
+      } else if (filterBy === "Approved") {
+        filter.RequestStatus = "Approved";
+      } else if (filterBy === "Returnable") {
+        filter.AssetType = "Returnable";
+      } else if (filterBy === "Non-returnable") {
+        filter.AssetType = "Non-returnable";
+      }
+
+      const myRequestedAssetList = await assetsRequestByEmployee
+        .find(filter)
+        .skip(page * limit)
+        .limit(limit)
         .toArray();
-      res.send(result);
+      const totalCount = await assetsRequestByEmployee.countDocuments({
+        email: email,
+      });
+      res.send({ myRequestedAssetList, totalCount });
     });
 
     app.get("/myTeamMembers/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const result = await employeeCollection
-        .find({
-          hrEmail: email,
-        })
-        .toArray();
+      const filter = { hrEmail: email };
+      const result = await employeeCollection.find(filter).toArray();
       const hrInfo = await hrCollection.findOne({
         email: email,
       });
@@ -333,9 +374,22 @@ async function run() {
     app.get("/assetRequests/:email", verifyToken, async (req, res) => {
       const page = parseInt(req.query.page - 1);
       const limit = parseInt(req.query.limit);
+      const search = req.query.search;
       const filter = {
         hrEmail: req.params.email,
       };
+
+      if (search) {
+        filter.$or = [
+          {
+            email: { $regex: search, $options: "i" },
+          },
+          {
+            RequestedBy: { $regex: search, $options: "i" },
+          },
+        ];
+      }
+
       const result = await assetsRequestByEmployee
         .find(filter)
         .skip(page * limit)
