@@ -102,18 +102,36 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-employees", verifyToken, async (req, res) => {
+    app.get("/all-employee-list", verifyToken, async (req, res) => {
+      const page = parseInt(req.query.page - 1);
+      const limit = parseInt(req.query.limit);
       const query = { role: "n/a" };
-      const result = await employeeCollection.find(query).toArray();
-      res.send(result);
+      console.log(page, limit);
+      const result = await employeeCollection
+        .find(query)
+        .skip(page * limit)
+        .limit(limit)
+        .toArray();
+      const totalCount = await employeeCollection.countDocuments({
+        role: "n/a",
+      });
+      console.log(totalCount);
+      res.send({ allEmployees: result, totalCount });
     });
 
-    app.get("/my-employees/:email", verifyToken, async (req, res) => {
+    app.get("/my-employee-list/:email", verifyToken, async (req, res) => {
+      const page = parseInt(req.query.page - 1);
+      const limit = parseInt(req.query.limit);
       const email = req.params.email;
       const result = await employeeCollection
         .find({ hrEmail: email })
+        .skip(page * limit)
+        .limit(limit)
         .toArray();
-      res.send(result);
+      const totalCount = await employeeCollection.countDocuments({
+        hrEmail: email,
+      });
+      res.send({ myEmployeeList: result, totalCount });
     });
 
     app.get("/assets-of-company/:email", verifyToken, async (req, res) => {
@@ -126,7 +144,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/assets-request-by-employee", async (req, res) => {
+    app.post("/assets-request-by-employee/:id", async (req, res) => {
       try {
         const data = req.body;
         const { email, AssetName, hrEmail } = data;
@@ -148,6 +166,7 @@ async function run() {
             {
               HREmail: hrEmail,
               productName: AssetName,
+              _id: new ObjectId(req.params.id),
             },
             { $inc: { productQuantity: -1 } }
           );
@@ -223,12 +242,49 @@ async function run() {
     });
 
     //Get All Assets Api
-    app.get("/all-asset/:email", verifyToken, async (req, res) => {
+    app.get("/all-assets/:email", verifyToken, async (req, res) => {
+      const page = parseInt(req.query.page) - 1 || 0;
+      const limit = parseInt(req.query.limit) || 10;
+      const filterBy = req.query.filterBy;
+      const sortBy = req.query.sortBy;
+
       const filter = {
         HREmail: req.params.email,
       };
-      const result = await assetCollection.find(filter).toArray();
-      res.send(result);
+      
+      //filter
+      if (filterBy === "Available") {
+        filter.productQuantity = { $gt: 0 };
+      } else if (filterBy === "Out-of-stock") {
+        filter.productQuantity = { $eq: 0 };
+      } else if (filterBy === "Returnable") {
+        filter.productType = "Returnable";
+      } else if (filterBy === "Non-returnable") {
+        filter.productType = "Non-returnable";
+      }
+
+      //sort
+      let sortQuery = {};
+      if (sortBy === "Ascending") {
+        sortQuery = { productQuantity: 1 };
+      } else if (sortBy === "Descending") {
+        sortQuery = { productQuantity: -1 };
+      }
+
+      try {
+        const assets = await assetCollection
+          .find(filter)
+          .sort(sortQuery)
+          .skip(page * limit)
+          .limit(limit)
+          .toArray();
+
+        const totalCount = await assetCollection.countDocuments(filter);
+
+        res.send({ assets, totalCount });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch assets" });
+      }
     });
 
     //Delete Asset Api
@@ -252,17 +308,37 @@ async function run() {
           companyLogo: updateData.companyLogo,
         },
       };
+
       const result = await employeeCollection.updateOne(filter, updateDoc);
+      if (result.modifiedCount > 0) {
+        const updateHrCollection = await hrCollection.updateOne(
+          {
+            email: updateData.hrEmail,
+          },
+          {
+            $inc: {
+              packageLimit: -1,
+            },
+          }
+        );
+      }
       res.send(result);
     });
 
     //Get All requested Assets Api
     app.get("/assetRequests/:email", verifyToken, async (req, res) => {
+      const page = parseInt(req.query.page - 1);
+      const limit = parseInt(req.query.limit);
       const filter = {
         hrEmail: req.params.email,
       };
-      const result = await assetsRequestByEmployee.find(filter).toArray();
-      res.send(result);
+      const result = await assetsRequestByEmployee
+        .find(filter)
+        .skip(page * limit)
+        .limit(limit)
+        .toArray();
+      const totalCount = await assetsRequestByEmployee.countDocuments(filter);
+      res.send({ assetRequests: result, totalCount });
     });
 
     app.put(`/handleRequest/:id`, async (req, res) => {
