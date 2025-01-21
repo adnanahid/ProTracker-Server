@@ -245,14 +245,18 @@ async function run() {
     app.get("/all-assets/:email", verifyToken, async (req, res) => {
       const page = parseInt(req.query.page) - 1 || 0;
       const limit = parseInt(req.query.limit) || 10;
+      const search = req.query.search;
       const filterBy = req.query.filterBy;
       const sortBy = req.query.sortBy;
 
+      // Filter
       const filter = {
         HREmail: req.params.email,
       };
-      
-      //filter
+
+      if (search) {
+        filter.productName = { $regex: search, $options: "i" };
+      }
       if (filterBy === "Available") {
         filter.productQuantity = { $gt: 0 };
       } else if (filterBy === "Out-of-stock") {
@@ -263,7 +267,7 @@ async function run() {
         filter.productType = "Non-returnable";
       }
 
-      //sort
+      // Sort
       let sortQuery = {};
       if (sortBy === "Ascending") {
         sortQuery = { productQuantity: 1 };
