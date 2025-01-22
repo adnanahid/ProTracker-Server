@@ -340,34 +340,73 @@ async function run() {
       res.send(result);
     });
 
-    //add employee to team
-    app.patch(`/add-to-team`, verifyToken, async (req, res) => {
-      const email = req.body.email;
-      const filter = { email: email };
-      const updateData = req.body;
-      const updateDoc = {
-        $set: {
-          role: "employee",
-          hrEmail: updateData.hrEmail,
-          companyName: updateData.companyName,
-          companyLogo: updateData.companyLogo,
-        },
-      };
+    // //add employee to team
+    // app.patch(`/add-to-team`, verifyToken, async (req, res) => {
+    //   const email = req.body.email;
+    //   const filter = { email: email };
+    //   const updateData = req.body;
+    //   const updateDoc = {
+    //     $set: {
+    //       role: "employee",
+    //       hrEmail: updateData.hrEmail,
+    //       companyName: updateData.companyName,
+    //       companyLogo: updateData.companyLogo,
+    //     },
+    //   };
 
-      const result = await employeeCollection.updateOne(filter, updateDoc);
-      if (result.modifiedCount > 0) {
-        const updateHrCollection = await hrCollection.updateOne(
+    //   const result = await employeeCollection.updateOne(filter, updateDoc);
+    //   if (result.modifiedCount > 0) {
+    //     const updateHrCollection = await hrCollection.updateOne(
+    //       {
+    //         email: updateData.hrEmail,
+    //       },
+    //       {
+    //         $inc: {
+    //           packageLimit: -1,
+    //         },
+    //       }
+    //     );
+    //   }
+    //   res.send(result);
+    // });
+
+    app.patch(`/add-selected-to-team`, verifyToken, async (req, res) => {
+      const employees = req.body.employees;
+
+      // Check if employees array exists and is not empty
+      if (!Array.isArray(employees) || employees.length === 0) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid data. Please provide a non-empty employees array.",
+        });
+      }
+
+      try {
+        // Update multiple employees in the database
+        const result = await employeeCollection.updateMany(
+          { email: { $in: employees.map((e) => e.email) } },
           {
-            email: updateData.hrEmail,
-          },
-          {
-            $inc: {
-              packageLimit: -1,
+            $set: {
+              role: "employee",
+              hrEmail: employees[0].hrEmail,
+              companyName: employees[0].companyName,
+              companyLogo: employees[0].companyLogo,
             },
           }
         );
+
+        res.status(200).send({
+          success: true,
+          message: "Employees successfully added to the team.",
+          result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "Failed to add employees to the team.",
+          error: error.message,
+        });
       }
-      res.send(result);
     });
 
     //Get All requested Assets Api
