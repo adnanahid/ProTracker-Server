@@ -333,77 +333,86 @@ async function run() {
     });
 
     //Delete Asset Api
-    app.delete(`/delete-asset/:id`, verifyToken, async (req, res) => {
+    app.delete(
+      `/delete-asset-from-assets/:id`,
+      verifyToken,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await assetCollection.deleteOne(query);
+        res.send(result);
+      }
+    );
+
+    //remove employee
+    app.patch("/remove-employee/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await assetCollection.deleteOne(query);
-      res.send(result);
+      const data = req.body;
+      try {
+        const result = await employeeCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: { role: "n/a" },
+            $unset: { companyLogo: "", companyName: "", hrEmail: "" },
+          }
+        );
+
+        if (result.modifiedCount === 1) {
+          const alsoDo = await hrCollection.updateOne(
+            {
+              email: data.hrEmail,
+            },
+            {
+              $inc: {
+                teamMembersLength: -1,
+              },
+            }
+          );
+          const alsoDo2 = await assetsRequestByEmployee.deleteMany({
+            email: data.email,
+          });
+        }
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "An error occurred" });
+      }
     });
 
-    // //add employee to team
-    // app.patch(`/add-to-team`, verifyToken, async (req, res) => {
-    //   const email = req.body.email;
-    //   const filter = { email: email };
-    //   const updateData = req.body;
-    //   const updateDoc = {
-    //     $set: {
-    //       role: "employee",
-    //       hrEmail: updateData.hrEmail,
-    //       companyName: updateData.companyName,
-    //       companyLogo: updateData.companyLogo,
-    //     },
-    //   };
+    app.patch("/add-selected-to-team", verifyToken, async (req, res) => {
+      const { employees } = req.body;
 
-    //   const result = await employeeCollection.updateOne(filter, updateDoc);
-    //   if (result.modifiedCount > 0) {
-    //     const updateHrCollection = await hrCollection.updateOne(
-    //       {
-    //         email: updateData.hrEmail,
-    //       },
-    //       {
-    //         $inc: {
-    //           packageLimit: -1,
-    //         },
-    //       }
-    //     );
-    //   }
-    //   res.send(result);
-    // });
-
-    app.patch(`/add-selected-to-team`, verifyToken, async (req, res) => {
-      const employees = req.body.employees;
-
-      // Check if employees array exists and is not empty
       if (!Array.isArray(employees) || employees.length === 0) {
         return res.status(400).send({
           success: false,
-          message: "Invalid data. Please provide a non-empty employees array.",
+          message: "Provide a valid employees array.",
         });
       }
 
       try {
-        // Update multiple employees in the database
+        const emails = employees.map((e) => e.email);
+        const { hrEmail, companyName, companyLogo } = employees[0];
+
         const result = await employeeCollection.updateMany(
-          { email: { $in: employees.map((e) => e.email) } },
-          {
-            $set: {
-              role: "employee",
-              hrEmail: employees[0].hrEmail,
-              companyName: employees[0].companyName,
-              companyLogo: employees[0].companyLogo,
-            },
-          }
+          { email: { $in: emails } },
+          { $set: { role: "employee", hrEmail, companyName, companyLogo } }
         );
+
+        if (result.acknowledged) {
+          await hrCollection.updateOne(
+            { email: hrEmail },
+            { $inc: { teamMembersLength: result.modifiedCount } }
+          );
+        }
 
         res.status(200).send({
           success: true,
-          message: "Employees successfully added to the team.",
+          message: "Employees added to the team.",
           result,
         });
       } catch (error) {
         res.status(500).send({
           success: false,
-          message: "Failed to add employees to the team.",
+          message: "Operation failed.",
           error: error.message,
         });
       }
