@@ -418,6 +418,17 @@ async function run() {
       }
     });
 
+    //increase member limit
+    app.patch("/increase-limit", async (req, res) => {
+      const { membersLimit } = req.body;
+      const { email } = req.body;
+      const result = await hrCollection.updateOne(
+        { email: email },
+        { $inc: { packageLimit: +membersLimit } }
+      );
+      res.send(result)
+    });
+
     //Get All requested Assets Api
     app.get("/assetRequests/:email", verifyToken, async (req, res) => {
       const page = parseInt(req.query.page - 1);
@@ -474,6 +485,21 @@ async function run() {
       } catch (error) {
         res.status(500).send({ error: "Failed to create payment intent" });
       }
+    });
+
+    app.post("/create-payment-intent-two", async (req, res) => {
+      const { price } = req.body;
+      const paymentAmount = parseInt(price * 100);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: paymentAmount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
     });
   } finally {
     // Ensures that the client will close when you finish/error
