@@ -148,10 +148,10 @@ async function run() {
         filter.productQuantity = { $gt: 0 };
       } else if (filterBy === "Out-of-stock") {
         filter.productQuantity = { $eq: 0 };
-      } else if (filterBy === "Returnable") {
-        filter.productType = "Returnable";
-      } else if (filterBy === "Non-returnable") {
-        filter.productType = "Non-returnable";
+      } else if (filterBy === "returnable") {
+        filter.productType = "returnable";
+      } else if (filterBy === "non-returnable") {
+        filter.productType = "non-returnable";
       }
 
       const requestedAssets = await assetCollection
@@ -231,10 +231,10 @@ async function run() {
         filter.RequestStatus = "Pending";
       } else if (filterBy === "Approved") {
         filter.RequestStatus = "Approved";
-      } else if (filterBy === "Returnable") {
-        filter.AssetType = "Returnable";
-      } else if (filterBy === "Non-returnable") {
-        filter.AssetType = "Non-returnable";
+      } else if (filterBy === "returnable") {
+        filter.AssetType = "returnable";
+      } else if (filterBy === "non-returnable") {
+        filter.AssetType = "non-returnable";
       }
 
       const myRequestedAssetList = await assetsRequestByEmployee
@@ -302,10 +302,10 @@ async function run() {
         filter.productQuantity = { $gt: 0 };
       } else if (filterBy === "Out-of-stock") {
         filter.productQuantity = { $eq: 0 };
-      } else if (filterBy === "Returnable") {
-        filter.productType = "Returnable";
-      } else if (filterBy === "Non-returnable") {
-        filter.productType = "Non-returnable";
+      } else if (filterBy === "returnable") {
+        filter.productType = "returnable";
+      } else if (filterBy === "non-returnable") {
+        filter.productType = "non-returnable";
       }
 
       // Sort
@@ -343,6 +343,23 @@ async function run() {
         res.send(result);
       }
     );
+
+    //update assets
+    app.patch("/update-asset/:id", async (req, res) => {
+      const id = req.params.id;
+      const data = req.body;
+      const result = await assetCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            productName: data.productName,
+            productQuantity: data.productQuantity,
+            productType: data.productType,
+          },
+        }
+      );
+      res.send(result);
+    });
 
     //remove employee
     app.patch("/remove-employee/:id", async (req, res) => {
@@ -426,7 +443,7 @@ async function run() {
         { email: email },
         { $inc: { packageLimit: +membersLimit } }
       );
-      res.send(result)
+      res.send(result);
     });
 
     //Get All requested Assets Api
