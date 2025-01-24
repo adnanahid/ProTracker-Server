@@ -248,6 +248,15 @@ async function run() {
       res.send({ myRequestedAssetList, totalCount });
     });
 
+    //return assets
+    app.delete(`/return-asset/:id`, async (req, res) => {
+      const id = req.params.id;
+      const result = await assetsRequestByEmployee.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+
     app.get("/myTeamMembers/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const filter = { hrEmail: email };
@@ -407,11 +416,21 @@ async function run() {
 
       try {
         const emails = employees.map((e) => e.email);
-        const { hrEmail, companyName, companyLogo } = employees[0];
+        const { hrName, hrEmail, hrPhoto, companyName, companyLogo } =
+          employees[0];
 
         const result = await employeeCollection.updateMany(
           { email: { $in: emails } },
-          { $set: { role: "employee", hrEmail, companyName, companyLogo } }
+          {
+            $set: {
+              role: "employee",
+              hrName,
+              hrEmail,
+              hrPhoto,
+              companyName,
+              companyLogo,
+            },
+          }
         );
 
         if (result.acknowledged) {
