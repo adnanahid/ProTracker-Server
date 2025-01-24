@@ -252,11 +252,20 @@ async function run() {
     //cancel assets request
     app.delete(`/cancel-asset-request/:id`, async (req, res) => {
       const id = req.params.id;
-      const info = req.body;
-      console.log(info);
+      const name = req.query.AssetName;
       const result = await assetsRequestByEmployee.deleteOne({
         _id: new ObjectId(id),
       });
+      if (result.deletedCount === 1) {
+        alsoDo = await assetCollection.updateOne(
+          {
+            productName: name,
+          },
+          {
+            $inc: { productQuantity: +1 },
+          }
+        );
+      }
       res.send(result);
     });
 
@@ -305,8 +314,21 @@ async function run() {
     //Add Asset Request
     app.post("/add-asset", verifyToken, async (req, res) => {
       const data = req.body;
-      const result = await assetCollection.insertOne(data);
-      res.send(result);
+      try {
+        const checkExisting = await assetCollection.findOne({
+          productName: data.productName,
+        });
+
+        if (checkExisting) {
+          return res.status(400).send({ message: "Product already exists" });
+        }
+        
+        const result = await assetCollection.insertOne(data);
+        res.send(result);
+      } catch (error) {
+        console.error("Error adding asset:", error);
+        res.status(500).send({ message: "Failed to add asset" });
+      }
     });
 
     //Get All Assets Api
@@ -525,6 +547,16 @@ async function run() {
         $set: req.body,
       };
       const result = await assetsRequestByEmployee.updateOne(query, updatedDoc);
+      if (req.body.RequestStatus === "canceled" && result.acknowledged) {
+        alsoDo = await assetCollection.updateOne(
+          {
+            productName: req.body.productName,
+          },
+          {
+            $inc: { productQuantity: +1 },
+          }
+        );
+      }
       res.send(result);
     });
 
