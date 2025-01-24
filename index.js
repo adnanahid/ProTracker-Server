@@ -172,6 +172,7 @@ async function run() {
         const existingRequest = await assetsRequestByEmployee.findOne({
           email: email,
           AssetName: AssetName,
+          RequestStatus: { $in: ["Pending", "Approved"] },
         });
 
         if (existingRequest) {
@@ -248,12 +249,29 @@ async function run() {
       res.send({ myRequestedAssetList, totalCount });
     });
 
-    //return assets
-    app.delete(`/return-asset/:id`, async (req, res) => {
+    //cancel assets request
+    app.delete(`/cancel-asset-request/:id`, async (req, res) => {
       const id = req.params.id;
+      const info = req.body;
+      console.log(info);
       const result = await assetsRequestByEmployee.deleteOne({
         _id: new ObjectId(id),
       });
+      res.send(result);
+    });
+
+    //return assets request
+    app.patch(`/return-asset/:id`, async (req, res) => {
+      const id = req.params.id;
+      const info = req.body;
+      const result = await assetsRequestByEmployee.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: { RequestStatus: "Returned" },
+        }
+      );
       res.send(result);
     });
 
@@ -362,7 +380,7 @@ async function run() {
         {
           $set: {
             productName: data.productName,
-            productQuantity: data.productQuantity,
+            productQuantity: parseInt(data.productQuantity),
             productType: data.productType,
           },
         }
