@@ -397,7 +397,13 @@ async function run() {
           { _id: new ObjectId(id) },
           {
             $set: { role: "n/a" },
-            $unset: { companyLogo: "", companyName: "", hrEmail: "" },
+            $unset: {
+              hrPhoto: "",
+              hrName: "",
+              companyLogo: "",
+              companyName: "",
+              hrEmail: "",
+            },
           }
         );
 
