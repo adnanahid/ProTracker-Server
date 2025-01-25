@@ -11,7 +11,7 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["https://assignment-12-6f00e.web.app", "http://localhost:5173"],
   })
 );
 
@@ -281,6 +281,18 @@ async function run() {
           $set: { RequestStatus: "Returned" },
         }
       );
+      if (result.matchedCount > 0) {
+        const alsoDo = await assetCollection.updateOne(
+          {
+            productName: info.AssetName,
+          },
+          {
+            $inc: {
+              productQuantity: +1,
+            },
+          }
+        );
+      }
       res.send(result);
     });
 
@@ -322,7 +334,7 @@ async function run() {
         if (checkExisting) {
           return res.status(400).send({ message: "Product already exists" });
         }
-        
+
         const result = await assetCollection.insertOne(data);
         res.send(result);
       } catch (error) {
@@ -600,9 +612,9 @@ async function run() {
 }
 run().catch(console.dir);
 
-// app.get("/", async (req, res) => {
-//   res.send("a12 over and out");
-// });
+app.get("/", async (req, res) => {
+  res.send("a12 over and out");
+});
 
 app.listen(port, () => {
   console.log(`a12 server is running on http://localhost:${port}`);
