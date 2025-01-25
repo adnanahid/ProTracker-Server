@@ -15,19 +15,9 @@ app.use(
   })
 );
 
-const verifyToken = (req, res, next) => {
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: "forbidden access" });
-  }
-  const token = req.headers.authorization.split(" ")[1];
-  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({ message: "forbidden access" });
-    }
-    req.decoded = decoded;
-    next();
-  });
-};
+// const verifyHr = (req, res, next) =>{
+//   const email = req.decoded.email
+// }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kgmqz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -63,6 +53,21 @@ async function run() {
       });
       res.send({ token });
     });
+    
+    //middleware
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "forbidden access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "forbidden access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
 
     //!Checking users role
     app.get("/detailsOf/:email", async (req, res) => {
@@ -83,7 +88,7 @@ async function run() {
         }
 
         // If no match is found
-        return res.status(404).send({ message: "User not found" });
+        return res.status(401).send({ message: "User not found" });
       } catch (error) {
         res.status(500).send({ message: "Internal server error" });
       }
@@ -165,56 +170,60 @@ async function run() {
       res.send({ requestedAssets, totalCount });
     });
 
-    app.post("/assets-request-by-employee/:id", async (req, res) => {
-      try {
-        const data = req.body;
-        const { email, AssetName, hrEmail } = data;
-        const existingRequest = await assetsRequestByEmployee.findOne({
-          email: email,
-          AssetName: AssetName,
-          RequestStatus: { $in: ["Pending", "Approved"] },
-        });
-
-        if (existingRequest) {
-          return res.status(409).send({
-            message: "You have already requested this asset.",
+    app.post(
+      "/assets-request-by-employee/:id",
+      verifyToken,
+      async (req, res) => {
+        try {
+          const data = req.body;
+          const { email, AssetName, hrEmail } = data;
+          const existingRequest = await assetsRequestByEmployee.findOne({
+            email: email,
+            AssetName: AssetName,
+            RequestStatus: { $in: ["Pending", "Approved"] },
           });
-        }
 
-        const result = await assetsRequestByEmployee.insertOne(data);
-
-        if (result.insertedId) {
-          const updateResult = await assetCollection.updateOne(
-            {
-              HREmail: hrEmail,
-              productName: AssetName,
-              _id: new ObjectId(req.params.id),
-            },
-            { $inc: { productQuantity: -1 } }
-          );
-
-          if (updateResult.modifiedCount > 0) {
-            return res.send({
-              message: "Asset requested successfully, and quantity updated.",
-              requestId: result.insertedId,
-            });
-          } else {
-            return res.status(500).send({
-              message: "Asset requested, but failed to update quantity.",
+          if (existingRequest) {
+            return res.status(409).send({
+              message: "You have already requested this asset.",
             });
           }
-        }
 
-        res.status(500).send({
-          message: "Failed to request asset.",
-        });
-      } catch (error) {
-        console.error("Error processing asset request:", error);
-        res.status(500).send({
-          message: "An error occurred while processing the request.",
-        });
+          const result = await assetsRequestByEmployee.insertOne(data);
+
+          if (result.insertedId) {
+            const updateResult = await assetCollection.updateOne(
+              {
+                HREmail: hrEmail,
+                productName: AssetName,
+                _id: new ObjectId(req.params.id),
+              },
+              { $inc: { productQuantity: -1 } }
+            );
+
+            if (updateResult.modifiedCount > 0) {
+              return res.send({
+                message: "Asset requested successfully, and quantity updated.",
+                requestId: result.insertedId,
+              });
+            } else {
+              return res.status(500).send({
+                message: "Asset requested, but failed to update quantity.",
+              });
+            }
+          }
+
+          res.status(500).send({
+            message: "Failed to request asset.",
+          });
+        } catch (error) {
+          console.error("Error processing asset request:", error);
+          res.status(500).send({
+            message: "An error occurred while processing the request.",
+          });
+        }
       }
-    });
+    );
 
     app.get("/myRequestedAssetList/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -250,7 +259,7 @@ async function run() {
     });
 
     //cancel assets request
-    app.delete(`/cancel-asset-request/:id`, async (req, res) => {
+    app.delete(`/cancel-asset-request/:id`, verifyToken, async (req, res) => {
       const id = req.params.id;
       const name = req.query.AssetName;
       const result = await assetsRequestByEmployee.deleteOne({
@@ -270,7 +279,7 @@ async function run() {
     });
 
     //return assets request
-    app.patch(`/return-asset/:id`, async (req, res) => {
+    app.patch(`/return-asset/:id`, verifyToken, async (req, res) => {
       const id = req.params.id;
       const info = req.body;
       const result = await assetsRequestByEmployee.updateOne(
@@ -406,7 +415,7 @@ async function run() {
     );
 
     //update assets
-    app.patch("/update-asset/:id", async (req, res) => {
+    app.patch("/update-asset/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const data = req.body;
       const result = await assetCollection.updateOne(
@@ -423,7 +432,7 @@ async function run() {
     });
 
     //remove employee
-    app.patch("/remove-employee/:id", async (req, res) => {
+    app.patch("/remove-employee/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const data = req.body;
       try {
@@ -513,7 +522,7 @@ async function run() {
     });
 
     //increase member limit
-    app.patch("/increase-limit", async (req, res) => {
+    app.patch("/increase-limit", verifyToken, async (req, res) => {
       const { membersLimit } = req.body;
       const { email } = req.body;
       const result = await hrCollection.updateOne(
@@ -552,7 +561,7 @@ async function run() {
       res.send({ assetRequests: result, totalCount });
     });
 
-    app.put(`/handleRequest/:id`, async (req, res) => {
+    app.put(`/handleRequest/:id`, verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const updatedDoc = {
@@ -591,7 +600,7 @@ async function run() {
       }
     });
 
-    app.post("/create-payment-intent-two", async (req, res) => {
+    app.post("/create-payment-intent-two", verifyToken, async (req, res) => {
       const { price } = req.body;
       const paymentAmount = parseInt(price * 100);
 
