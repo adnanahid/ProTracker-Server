@@ -2,6 +2,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const { default: axios } = require("axios");
 const app = express();
 require("dotenv").config();
 const port = process.env.PORT || 5000;
@@ -44,6 +45,10 @@ async function run() {
     const assetsRequestByEmployee = database.collection(
       "assetsRequestByEmployee"
     );
+    //requestedAssetByEmployeeCollection
+    const paymentCollection = database.collection("paymentCollection");
+    // notice collection
+    const noticeCollection = database.collection("noticeCollection");
 
     //! jwt related
     app.post("/jwt", async (req, res) => {
@@ -53,7 +58,7 @@ async function run() {
       });
       res.send({ token });
     });
-    
+
     //middleware
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
@@ -352,6 +357,13 @@ async function run() {
       }
     });
 
+    //post notice
+    app.post("/add-notice", verifyToken, async (req, res) => {
+      const data = req.body;
+      const result = await noticeCollection.insertOne(data);
+      res.send(result);
+    });
+
     //Get All Assets Api
     app.get("/all-assets/:email", verifyToken, async (req, res) => {
       const page = parseInt(req.query.page) - 1 || 0;
@@ -400,6 +412,14 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Failed to fetch assets" });
       }
+    });
+
+    //get notice
+    app.get("/get-notice/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await noticeCollection.find({ by: email }).toArray();
+      const reverseResult = result.reverse();
+      res.send({ result: reverseResult });
     });
 
     //Delete Asset Api
@@ -584,7 +604,7 @@ async function run() {
     //!payment Intent
     app.post("/create-payment-intent", async (req, res) => {
       const { amount } = req.body;
-      const paymentAmount = parseInt(amount * 100); // Stripe
+      const paymentAmount = parseInt(amount * 100);
       try {
         const paymentIntent = await stripe.paymentIntents.create({
           amount: paymentAmount,
@@ -598,6 +618,59 @@ async function run() {
       } catch (error) {
         res.status(500).send({ error: "Failed to create payment intent" });
       }
+    });
+
+    app.post("/create-ssl-payment", async (req, res) => {
+      const payment = req.body;
+      const trxId = new ObjectId().toString();
+      payment.trxId = trxId;
+
+      const data = {
+        store_id: process.env.Store_ID,
+        store_passwd: process.env.Store_Password,
+        total_amount: req.body.price,
+        currency: "USD",
+        tran_id: trxId,
+        success_url: "http://localhost:5001/success",
+        fail_url: "http://localhost:5173/fail",
+        cancel_url: "http://localhost:5173/payment",
+        ipn_url: "http://localhost:5001/ipn",
+        shipping_method: "Courier",
+        product_name: "Computer.",
+        product_category: "Electronic",
+        product_profile: "general",
+        cus_name: "Customer Name",
+        cus_email: req.body.email,
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        ship_name: "Customer Name",
+        ship_add1: "Dhaka",
+        ship_add2: "Dhaka",
+        ship_city: "Dhaka",
+        ship_state: "Dhaka",
+        ship_postcode: 1000,
+        ship_country: "Bangladesh",
+      };
+
+      const saveData = await paymentCollection.insertOne(payment);
+
+      const inResponse = await axios({
+        url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+        method: "POST",
+        data: data,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      });
+      const gatewayUrl = inResponse?.data?.GatewayPageURL;
+      console.log("gatewayUrl", gatewayUrl);
+      res.send({ gatewayUrl });
     });
 
     app.post("/create-payment-intent-two", verifyToken, async (req, res) => {
