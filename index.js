@@ -51,6 +51,9 @@ async function run() {
     const noticeCollection = database.collection("noticeCollection");
     //Post collection
     const postCollection = database.collection("postCollection");
+    //tod list
+    const todoCollection = database.collection("todoCollection");
+
     //! jwt related
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -117,13 +120,31 @@ async function run() {
     // Add a comment to a post
     app.post("/community-comment", async (req, res) => {
       const data = req.body;
-
       const result = await postCollection.updateOne(
         { _id: new ObjectId(data.postId) },
         { $push: { comments: data } }
       );
-
       res.send(result);
+    });
+
+    //oTODOlist
+    app.post("/todo", async (req, res) => {
+      const data = req.body;
+      const result = await todoCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.get("/todo/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await todoCollection.find({ email: email }).toArray();
+      console.log(result);
+      res.send({ result });
+    });
+
+    app.delete("/todo/:taskId", async (req, res) => {
+      const id = req.params.taskId;
+      const result = await todoCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send({ result });
     });
 
     //! Employee related api
