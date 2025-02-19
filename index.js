@@ -49,7 +49,8 @@ async function run() {
     const paymentCollection = database.collection("paymentCollection");
     // notice collection
     const noticeCollection = database.collection("noticeCollection");
-
+    //Post collection
+    const postCollection = database.collection("postCollection");
     //! jwt related
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -97,6 +98,32 @@ async function run() {
       } catch (error) {
         res.status(500).send({ message: "Internal server error" });
       }
+    });
+
+    //! Common APi
+    // Create a new post
+    app.post("/community-post", async (req, res) => {
+      const post = req.body;
+      const result = await postCollection.insertOne(post);
+      res.send(result);
+    });
+
+    // Get all posts
+    app.get("/community-post", async (req, res) => {
+      const result = await postCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Add a comment to a post
+    app.post("/community-comment", async (req, res) => {
+      const data = req.body;
+
+      const result = await postCollection.updateOne(
+        { _id: new ObjectId(data.postId) },
+        { $push: { comments: data } }
+      );
+
+      res.send(result);
     });
 
     //! Employee related api
