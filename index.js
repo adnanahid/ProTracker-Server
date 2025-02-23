@@ -137,7 +137,6 @@ async function run() {
     app.get("/todo/:email", async (req, res) => {
       const email = req.params.email;
       const result = await todoCollection.find({ email: email }).toArray();
-      console.log(result);
       res.send({ result });
     });
 
